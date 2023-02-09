@@ -13,8 +13,8 @@ COLORS = dict(
 class PygameWindow:
     def __init__(self,
                  name,
-                 size,
-                 real_map_size_pixels,
+                 size, #  h, w
+                 real_map_size_pixels, # h, w
                  map_settings_dict,
                  goal_point,
                  stopping_dist):
@@ -22,15 +22,16 @@ class PygameWindow:
         pygame.init()
         pygame.display.set_caption(name)
 
-        self.size = size
-        self.meters_per_pixel = map_settings_dict['resolution'] / self.size[0] * real_map_size_pixels[0]
+        disp_h, disp_w = size
+        real_map_h_pixels, real_map_w_pixels = real_map_size_pixels
+        self.meters_per_pixel = map_settings_dict['resolution'] / disp_h * real_map_h_pixels
         self.map_settings_dict = map_settings_dict
         self.origin = np.array(map_settings_dict['origin'])
 
         map_img = pygame.image.load('../maps/myhal.png')
-        map_img = pygame.transform.scale(map_img, self.size)
+        map_img = pygame.transform.scale(map_img, (disp_w, disp_h))
 
-        self.screen = pygame.display.set_mode(self.size)
+        self.screen = pygame.display.set_mode((disp_w, disp_h))
         self.screen.blit(map_img, (0, 0))
         pygame.display.flip()
 

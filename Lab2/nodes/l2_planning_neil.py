@@ -43,8 +43,7 @@ class PathPlanner:
         #Get map information
         self.occupancy_map = load_map(map_filename)
         self.map_shape = self.occupancy_map.shape # (49, 159)
-        print(self.map_shape)
-        #print(self.map_shape)
+
         self.map_settings_dict = load_map_yaml(map_setings_filename)
         self.T_wm = self.transform_map_to_world()
         self.T_mw = np.linalg.inv(self.T_wm)
@@ -82,7 +81,7 @@ class PathPlanner:
         
         #Pygame window for visualization
         self.window = pygame_utils.PygameWindow(
-            "Path Planner", (1590, 490), self.occupancy_map.shape, self.map_settings_dict, self.goal_point, self.stopping_dist)
+            "Path Planner", self.occupancy_map.shape, self.occupancy_map.shape, self.map_settings_dict, self.goal_point, self.stopping_dist)
         return
     
     @staticmethod
@@ -208,7 +207,7 @@ class PathPlanner:
         point_m = self.T_mw @ np.expand_dims(np.concatenate((point.T, np.ones((point.shape[1], 1))), axis=-1), axis=-1)
         point_map_idx = np.zeros_like(point, dtype=int)
         point_map_idx[0, :] = (point_m[:, 0] / res).astype(int).squeeze()
-        point_map_idx[1, :] = ((self.map_shape[1] * res - point_m[:, 1]) / res).astype(int).squeeze()
+        point_map_idx[1, :] = ((self.map_shape[0] * res - point_m[:, 1]) / res).astype(int).squeeze()
         return point_map_idx # (2, N)
 
     def points_to_robot_circle(self, points):
@@ -221,6 +220,7 @@ class PathPlanner:
         footprints = [] # one for each point
         # breakpoint()
         for i in range(point_map_idx.shape[1]):
+            # note: rr, cc are the indices of the pixels in the circle, not x y coordinates
             rr, cc = disk((point_map_idx[0, i], point_map_idx[1, i]), radius_map)
             rr = np.clip(rr, 0, self.map_shape[0] - 1)
             cc = np.clip(cc, 0, self.map_shape[1] - 1)
