@@ -106,7 +106,7 @@ class PathPlanner:
         # With probability prob_goal to sample around goal point
         goal_d = self.closest_node_dist(self.goal_point)[1]
         if goal_d < 5:
-            if np.random.rand() < 0.6:
+            if np.random.rand() < 0.:
                 return self.goal_point + 3 * goal_d * np.random.randn(2, 1)
         if np.random.rand() < prob_goal:
             return self.goal_point + 5 * self.stopping_dist * np.random.randn(2, 1)
@@ -329,11 +329,6 @@ class PathPlanner:
             q += [(childchild, child_old_cost) for childchild in self.nodes[child].children_ids]
             i += 1'''
         self.nodes[node_id].cost = self.nodes[self.nodes[node_id].parent_id].cost + self.cost_to_come(self.nodes[node_id].traj_arrive)
-        
-        if np.isnan(self.nodes[node_id].cost):
-            print(node_id)
-            print(self.nodes[node_id].traj_arrive)
-            raise KeyboardInterrupt
 
         for child in self.nodes[node_id].children_ids:
             self.update_children(child)
@@ -399,7 +394,7 @@ class PathPlanner:
                 #point = self.sample_map_space()
             #else:
                 #override_point = False
-            #self.window.add_point(point[:, 0].copy(), color = (255, 0, 0)) #delete me
+            self.window.add_point(point[:, 0].copy(), color = (255, 0, 0)) #delete me
 
             #Closest Node
             closest_node_id = self.closest_node(point)
@@ -431,7 +426,7 @@ class PathPlanner:
             
             self.nodes.append(Node(point = trajectory_o[:, [-1]], parent_id = closest_node_id, cost = cost_to_come,
                 traj_arrive=trajectory_o))
-            #self.window.add_point(trajectory_o[:-1, -1].copy()) #delete me
+            self.window.add_point(trajectory_o[:-1, -1].copy()) #delete me
             self.window.add_line(self.nodes[closest_node_id].point[:-1, 0].copy(), trajectory_o[:-1, -1].copy(), width = 3, color = (0, 0, 255)) #delete me
 
             self.nodes[closest_node_id].children_ids.append(len(self.nodes) - 1)
@@ -534,7 +529,7 @@ def main():
     path_planner = PathPlanner(map_filename, map_setings_filename, goal_point, stopping_dist, myhal=False)
     #nodes = path_planner.rrt_planning()
     nodes = path_planner.rrt_star_planning()
-    node_path_metric = np.hstack(path_planner.recover_path())
+    node_path_metric = np.hstack(path_planner.recover_path(node_id=path_planner.goal_idx))
 
     last_node = node_path_metric[:, 0]
     for node_idx in range(1, node_path_metric.shape[1]):
