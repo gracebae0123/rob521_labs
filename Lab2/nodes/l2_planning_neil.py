@@ -39,7 +39,7 @@ class Node:
 #Path Planner 
 class PathPlanner:
     #A path planner capable of perfomring RRT and RRT*
-    def __init__(self, map_filename, map_setings_filename, goal_point, stopping_dist, myhal=False):
+    def __init__(self, map_filename, map_setings_filename, goal_point, stopping_dist, myhal=False, max_iter=5000):
         #Get map information
         self.occupancy_map = load_map(map_filename)
         self.map_shape = self.occupancy_map.shape
@@ -48,6 +48,7 @@ class PathPlanner:
         self.T_wm = self.transform_map_to_world()
         self.T_mw = np.linalg.inv(self.T_wm)
         self.myhal = myhal
+        self.max_iter = max_iter
 
         #Get the metric bounds of the map
         self.bounds = np.zeros([2,2]) #m
@@ -64,13 +65,14 @@ class PathPlanner:
         #Goal Parameters
         self.goal_point = goal_point #m
         self.stopping_dist = stopping_dist #m
-
+        
         #Trajectory Simulation Parameters
         self.timestep = 1.0 #s
         self.num_substeps = 10
 
         #Planning storage
         self.nodes = [Node(np.zeros((3,1)), -1, 0)]
+        self.goal_idx = None
 
         #RRT* Specific Parameters
         self.lebesgue_free = np.sum(self.occupancy_map) * self.map_settings_dict["resolution"] **2
@@ -80,8 +82,12 @@ class PathPlanner:
         self.epsilon = 2.5
         
         #Pygame window for visualization
+        if self.myhal:
+            size = (self.occupancy_map.shape[0] * 5, self.occupancy_map.shape[1] * 5)
+        else:
+            size = (self.occupancy_map.shape[0] * 0.5, self.occupancy_map.shape[1] * 0.5)
         self.window = pygame_utils.PygameWindow(
-            "Path Planner", self.occupancy_map.shape, self.occupancy_map.shape, self.map_settings_dict, self.goal_point, self.stopping_dist)
+            "Path Planner", size, self.occupancy_map.shape, self.map_settings_dict, self.goal_point, self.stopping_dist, map_filename)
         return
     
     @staticmethod
@@ -104,17 +110,17 @@ class PathPlanner:
         #Return an [x,y] coordinate to drive the robot towards
         #print("TO DO: Sample point to drive towards")
         # With probability prob_goal to sample around goal point
-        goal_d = self.closest_node_dist(self.goal_point)[1]
-        if goal_d < 5:
-            if np.random.rand() < 0.:
-                return self.goal_point + 3 * goal_d * np.random.randn(2, 1)
+        #goal_d = self.closest_node_dist(self.goal_point)[1]
+        #if goal_d < 5:
+            #if np.random.rand() < 0.:
+                #return self.goal_point + 3 * goal_d * np.random.randn(2, 1)
         if np.random.rand() < prob_goal:
             return self.goal_point + 5 * self.stopping_dist * np.random.randn(2, 1)
         if not self.myhal:
             real_bounds = np.array([[-3.5, 43.5],[-49.25, 10.5]])
             return np.random.rand(2, 1) * (real_bounds[:, [1]] - real_bounds[:, [0]])  + real_bounds[:, [0]] 
-        return np.random.rand(2, 1) * (self.bounds[:, [1]] - self.bounds[:, [0]])  + self.bounds[:, [0]] 
-    
+        return np.random.rand(2, 1) * (self.bounds[:, [1]] - self.bounds[:, [0]])  + self.bounds[:, [0]]
+
     def check_if_duplicate(self, point):
         #Check if point is a duplicate of an already existing node
         #print("TO DO: Check that nodes are not duplicates")
@@ -153,7 +159,7 @@ class PathPlanner:
         # traj: (2, N)
         footprints = self.points_to_robot_circle(traj) # (N, point_per_circle, 2)
         if self.myhal:
-            return np.any(self.occupancy_map[footprints[..., 0], footprints[..., 1]] == 0, axis = -1)# (N, point_per_circle)
+            return np.any(self.occupancy_map[footprints[..., 1], footprints[..., 0]] == 0, axis = -1)# (N, point_per_circle)
         else:
             return np.any(self.occupancy_map[footprints[..., 1], footprints[..., 0]] == 0, axis = -1)
     
@@ -215,17 +221,37 @@ class PathPlanner:
         #Convert a series of [x,y] points to robot map footprints for collision detection
         #Hint: The disk function is included to help you with this function
         #print("TO DO: Implement a method to get the pixel locations of the robot path")
-        radius_map = self.robot_radius / self.map_settings_dict["resolution"]
+        '''radius_map = self.robot_radius / self.map_settings_dict["resolution"]
 
         point_map_idx = self.point_to_cell(points)
         footprints = [] # one for each point
         for i in range(point_map_idx.shape[1]):
             # note: rr, cc are the indices of the pixels in the circle, not x y coordinates
-            rr, cc = disk((point_map_idx[0, i], point_map_idx[1, i]), radius_map)
-            rr = np.clip(rr, 0, self.map_shape[0] - 1)
-            cc = np.clip(cc, 0, self.map_shape[1] - 1)
+            rr, cc = disk((point_map_idx[1, i], point_map_idx[0, i]), radius_map)
+            rr = np.clip(rr, 0, self.map_shape[1] - 1)
+            cc = np.clip(cc, 0, self.map_shape[0] - 1)
             footprints.append(np.stack((rr, cc), axis=-1))
-        return np.stack(footprints, axis=0) #(N, point_per_circle, 2)
+        return np.stack(footprints, axis=0) #(N, point_per_circle, 2)'''
+        inds = self.point_to_cell(points).T  # px locations (N, 2)
+        res = self.map_settings_dict["resolution"]
+        radius_map = self.robot_radius / res  # radius in px
+
+        N = inds.shape[0]
+        indexings = np.arange(np.floor(-radius_map), np.ceil(radius_map), dtype=int)
+
+        # Creates a addition map that adds onto center point to produce points in circle
+        x_indexings, y_indexings = np.meshgrid(indexings, indexings, indexing='ij')
+        indexings_2d = np.stack((x_indexings.ravel(order='F'), y_indexings.ravel(order='F')), axis=1)
+        indexings_2d = indexings_2d[np.linalg.norm(indexings_2d, axis=1) < radius_map]  # (point_per_circle, 2)
+        circle_offsets = np.tile(indexings_2d, (N, 1)).reshape(N, -1, 2)  # (N, point_per_circle, 2)
+
+        x_circlePts = np.tile(inds[:, 0][:, None], (1, indexings_2d.shape[0])) + circle_offsets[:, :, 0]
+        x_circlePts = np.clip(x_circlePts, 0, self.occupancy_map.shape[1] - 1)
+
+        y_circlePts = np.tile(inds[:, 1][:, None], (1, indexings_2d.shape[0])) + circle_offsets[:, :, 1]
+        y_circlePts = np.clip(y_circlePts, 0, self.occupancy_map.shape[0] - 1)
+
+        return np.stack((x_circlePts, y_circlePts), axis=-1)  #(N, point_per_circle, 2)
     
     #Note: If you have correctly completed all previous functions, then you should be able to create a working RRT function
 
@@ -387,7 +413,7 @@ class PathPlanner:
         i = 0
         #override_point = False      
         #while True: #Most likely need more iterations than this to complete the map!
-        for _ in range(1000):
+        for _ in range(self.max_iter):
             #Sample
             point = self.sample_map_space()
             #if not override_point:
@@ -412,7 +438,7 @@ class PathPlanner:
             footprints = self.points_to_robot_circle(trajectory_o[:2, :])
             
             if self.myhal:
-                if np.any(self.occupancy_map[footprints[..., 0], footprints[..., 1]] == 0):
+                if np.any(self.occupancy_map[footprints[..., 1], footprints[..., 0]] == 0):
                     continue
             else:
                 if np.any(self.occupancy_map[footprints[..., 1], footprints[..., 0]] == 0):
@@ -455,6 +481,8 @@ class PathPlanner:
                 self.nodes[-1].parent_id = best_id
                 self.nodes[-1].cost = best_ctc
                 self.nodes[-1].traj_arrive = best_traj
+                #self.window.add_line(self.nodes[closest_node_id].point[:-1, 0].copy(), trajectory_o[:-1, -1].copy(), width = 3, color = (255, 255, 255)) #delete me
+                #self.window.add_line(self.nodes[best_id].point[:-1, 0].copy(), trajectory_o[:-1, -1].copy(), width = 3, color = (0, 0, 255)) #delete me
                 #self.window.add_line(self.nodes[best_id].point[:-1, 0].copy(), trajectory_o[:-1, -1].copy(), width = 8, color = (160, 160, 0)) #delete me
 
             #Close node rewire
@@ -468,12 +496,15 @@ class PathPlanner:
                 #print(new_ctc, self.nodes[close_node_id].cost)
                 if new_ctc < self.nodes[close_node_id].cost:
                     self.nodes[-1].children_ids.append(close_node_id)
+                    #self.window.add_line(self.nodes[self.nodes[close_node_id].parent_id].point[:-1, 0].copy(),
+                                         #self.nodes[close_node_id].point[:-1, 0].copy(), width = 3, color = (255, 255, 255)) #delete me
                     self.nodes[self.nodes[close_node_id].parent_id].children_ids.remove(close_node_id)
                     self.nodes[close_node_id].parent_id = len(self.nodes) - 1
                     self.nodes[close_node_id].cost = new_ctc
                     self.nodes[close_node_id].traj_arrive = new_traj
                     #print(f"rewire: {len(self.nodes) - 1}")
                     self.update_children(close_node_id)
+                    #self.window.add_line(trajectory_o[:-1, -1].copy(), self.nodes[close_node_id].point[:-1, 0].copy(), width = 3, color = (0, 0, 255)) #delete me
                     #self.window.add_line(trajectory_o[:-1, -1].copy(), self.nodes[close_node_id].point[:-1, 0].copy(), width = 8, color = (80, 80, 80)) #delete me
             
             '''#Close node rewire
@@ -496,7 +527,8 @@ class PathPlanner:
 
             #Check for early end
             if np.linalg.norm(trajectory_o[:2, [-1]] - self.goal_point) < self.stopping_dist:
-                self.goal_idx = i
+                if self.goal_idx is None or self.nodes[-1].cost < self.nodes[self.goal_idx].cost:
+                    self.goal_idx = len(self.nodes) - 1
                 #break
             i += 1
             print(f"iter: {i}")
@@ -512,36 +544,39 @@ class PathPlanner:
         return path
 
 def main():
-    #Set map information
-    map_filename = "willowgarageworld_05res.png"
-    #map_filename = "myhal.png"
-    map_setings_filename = "willowgarageworld_05res.yaml"
-    #map_setings_filename = "myhal.yaml"
+    #Set map information3
+    myhal = True
+    #map_filename = "willowgarageworld_05res.png"
+    map_filename = "myhal.png"
+    #map_setings_filename = "willowgarageworld_05res.yaml"
+    map_setings_filename = "myhal.yaml"
 
     #robot information
     #goal_point = np.array([[42], [-44]]) #m
-    goal_point = np.array([[42], [-44]]) #m
-    #goal_point = np.array([[7], [0]])
-    stopping_dist = 0.5 #m
-    #stopping_dist = 0.2 #m
+    #goal_point = np.array([[42], [-44]]) #m
+    goal_point = np.array([[7], [0]])
+    #stopping_dist = 0.5 #m
+    stopping_dist = 0.2 #m
 
     #RRT precursor
-    path_planner = PathPlanner(map_filename, map_setings_filename, goal_point, stopping_dist, myhal=False)
+    path_planner = PathPlanner(map_filename, map_setings_filename, goal_point, stopping_dist, myhal=myhal, max_iter=2000) # change max_iter to 10000 for willow
     #nodes = path_planner.rrt_planning()
     nodes = path_planner.rrt_star_planning()
     node_path_metric = np.hstack(path_planner.recover_path(node_id=path_planner.goal_idx))
 
+    total_cost = 0
     last_node = node_path_metric[:, 0]
     for node_idx in range(1, node_path_metric.shape[1]):
         path_planner.window.add_line(last_node[:2].copy(), node_path_metric[:2, node_idx].copy(), width = 3, color = (0, 0, 0))
+        total_cost += np.linalg.norm(last_node[:2] - node_path_metric[:2, node_idx])
         last_node = node_path_metric[:2, node_idx]
-    save_name = input("Save name:")
+    save_name = input(f"Total Cost: {total_cost} || Save name:")
 
     #Leftover test functions
-    np.save(f"shortest_path_RRT_{save_name}.npy", node_path_metric)
+    #np.save(f"shortest_path_RRT_{save_name}.npy", node_path_metric)
     #np.save(f"shortest_path_RRT_{save_name}_myhal.npy", node_path_metric)
-    #np.save(f"shortest_path_RRT_star_{save_name}.npy", node_path_metric)
-    #np.save(f"shortest_path_RRT_star_{save_name}_myhal.npy", node_path_metric)
+    #np.save(f"shortest_path_RRT_star_{save_name}.npy", node_path_metric) # Willow best: 90
+    np.save(f"shortest_path_RRT_star_{save_name}_myhal.npy", node_path_metric) # Myhal best: 7.55
 
 def draw():
     #Set map information
@@ -553,7 +588,7 @@ def draw():
     #robot information
     #goal_point = np.array([[42], [-44]]) #m
     goal_point = np.array([[7], [0]]) #m
-    stopping_dist = 0.3 #m
+    stopping_dist = 0.2 #m
 
     #RRT precursor
     path_planner = PathPlanner(map_filename, map_setings_filename, goal_point, stopping_dist)
@@ -561,16 +596,19 @@ def draw():
     #nodes = path_planner.rrt_star_planning()
     #node_path_metric = np.hstack(path_planner.recover_path())
 
-    node_path_metric = np.load("shortest_path_RRT_myhal_myhal.npy")
+    node_path_metric = np.load("shortest_path_RRT_star_best_myhal.npy")
 
+    total_cost = 0
     last_node = node_path_metric[:, 0]
     for node_idx in range(1, node_path_metric.shape[1]):
         path_planner.window.add_line(last_node[:2].copy(), node_path_metric[:2, node_idx].copy(), width = 3, color = (0, 0, 0))
+        total_cost += np.linalg.norm(last_node[:2] - node_path_metric[:2, node_idx])
         last_node = node_path_metric[:2, node_idx]
-    input("Press Enter to Exit")
-    pygame.image.save(path_planner.window.screen, "RRT_myhal.png")
+    input(f"Total Cost: {total_cost} || Press Enter to Exit")
+    pygame.image.save(path_planner.window.screen, "RRT_star_myhal.png")
+    #pygame.image.save(path_planner.window.screen, "RRT_star_willow.png")
 
 
 if __name__ == '__main__':
-    main()
-    #draw()
+    #main()
+    draw()

@@ -17,7 +17,8 @@ class PygameWindow:
                  real_map_size_pixels, # h, w
                  map_settings_dict,
                  goal_point,
-                 stopping_dist):
+                 stopping_dist,
+                 mapfile_name):
 
         pygame.init()
         pygame.display.set_caption(name)
@@ -28,7 +29,7 @@ class PygameWindow:
         self.map_settings_dict = map_settings_dict
         self.origin = np.array(map_settings_dict['origin'])
 
-        map_img = pygame.image.load('../maps/myhal.png')
+        map_img = pygame.image.load(f"../maps/{mapfile_name}")
         map_img = pygame.transform.scale(map_img, (disp_w, disp_h))
 
         self.screen = pygame.display.set_mode((disp_w, disp_h))
