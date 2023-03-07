@@ -158,7 +158,7 @@ class OccupancyGripMap:
         x_end = int(x_end)
         y_end = int(y_end)
         # compute pixels along the line from start to end
-        pixels = ray_trace(x_start, y_start, x_end, y_end)
+        pixels = ray_trace(y_start, x_start, y_end, x_end)
         # update the log odds
         log_odds[pixels[-1]] += ALPHA  # occupied space
         log_odds[pixels[:-1]] -= BETA  # free space
