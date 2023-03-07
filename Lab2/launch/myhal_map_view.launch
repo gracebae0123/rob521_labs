@@ -19,11 +19,6 @@
           args="-d $(find rob521_lab2)/rviz/map_view.rviz"/>
   </group>
 
-  <!-- static from map to odom since in gazebo, odom is perfect -->
-  <!-- <node pkg="tf" type="static_transform_publisher" name="odom_to_map"
-    args="19.0 -9.25  0  -1.5707963 0 0  /map /odom 100" /> -->
-  <node pkg="tf" type="static_transform_publisher" name="odom_to_map"
-    args="19.0 -9.25  0  -1.5707963 0 0  /map /odom 100" />
 
 
 
