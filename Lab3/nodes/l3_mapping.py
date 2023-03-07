@@ -158,13 +158,13 @@ class OccupancyGripMap:
         x_end = int(x_end)
         y_end = int(y_end)
         # compute pixels along the line from start to end
-        pixels = ray_trace(y_start, x_start, y_end, x_end)
+        y_pix, x_pix = ray_trace(y_start, x_start, y_end, x_end)
         # update the log odds
-        num_pts_obstacle = min(NUM_PTS_OBSTACLE, len(pixels))
-        log_odds[pixels[-num_pts_obstacle:]] += ALPHA  # occupied space
-        log_odds[pixels[:-num_pts_obstacle]] -= BETA  # free space
+        num_pts_obstacle = min(NUM_PTS_OBSTACLE, len(x_pix))
+        log_odds[x_pix[-num_pts_obstacle:], y_pix[-num_pts_obstacle:]] += ALPHA  # occupied space
+        log_odds[x_pix[:-num_pts_obstacle], y_pix[:-num_pts_obstacle]] -= BETA  # free space
         # update the map with the log odds
-        map[pixels] = self.log_odds_to_probability(log_odds[pixels]) * 100
+        map[x_pix, y_pix] = self.log_odds_to_probability(log_odds[x_pix, y_pix]) * 100
         return map, log_odds
 
     def log_odds_to_probability(self, values):
