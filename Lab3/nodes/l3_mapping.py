@@ -147,12 +147,16 @@ class OccupancyGripMap:
         # compute the x and y end of the measurement
         x_end = x_start + (range_mes + NUM_PTS_OBSTACLE) * np.cos(angle)
         y_end = y_start + (range_mes + NUM_PTS_OBSTACLE) * np.sin(angle)
-        # convert the x and y end to integers
-        x_end = int(x_end)
-        y_end = int(y_end)
-        # bound the x and y end to the map
+        # bound the x and y to the map
+        x_start = np.clip(x_start, 0, map.shape[0] - 1)
+        y_start = np.clip(y_start, 0, map.shape[1] - 1)
         x_end = np.clip(x_end, 0, map.shape[0] - 1)
         y_end = np.clip(y_end, 0, map.shape[1] - 1)
+        # convert the x and y to integers
+        x_start = int(x_start)
+        y_start = int(y_start)
+        x_end = int(x_end)
+        y_end = int(y_end)
         # compute pixels along the line from start to end
         pixels = ray_trace(x_start, y_start, x_end, y_end)
         # update the log odds
