@@ -18,7 +18,7 @@ from utils import (
     tf_to_tf_mat,
 )
 
-ALPHA = 1
+ALPHA = 10
 BETA = 1
 MAP_DIM = (4, 4)
 CELL_SIZE = 0.01
@@ -114,6 +114,7 @@ class OccupancyGripMap:
                 continue
             # get the angle of the measurement
             angle = odom_map[2] + scan_msg.angle_min + i * scan_msg.angle_increment
+
             # get the x and y start of the measurement
             x_start = odom_map[0] / CELL_SIZE
             y_start = odom_map[1] / CELL_SIZE
@@ -122,6 +123,7 @@ class OccupancyGripMap:
             self.np_map, self.log_odds = self.ray_trace_update(
                 self.np_map, self.log_odds, x_start, y_start, angle, range
             )
+
 
         # publish the message
         self.map_msg.info.map_load_time = rospy.Time.now()
@@ -164,7 +166,7 @@ class OccupancyGripMap:
         log_odds[x_pix[-num_pts_obstacle:], y_pix[-num_pts_obstacle:]] += ALPHA  # occupied space
         log_odds[x_pix[:-num_pts_obstacle], y_pix[:-num_pts_obstacle]] -= BETA  # free space
         # update the map with the log odds
-        map[x_pix, y_pix] = self.log_odds_to_probability(log_odds[x_pix, y_pix]) * 100
+        map[y_pix, x_pix] = self.log_odds_to_probability(log_odds[x_pix, y_pix]) * 100
         return map, log_odds
 
     def log_odds_to_probability(self, values):

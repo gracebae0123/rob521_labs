@@ -142,13 +142,13 @@ class WheelOdom:
             self.bag.write('odom_est', self.wheel_odom)
 
             # for testing against actual odom
-            #print("Wheel Odom: x: %2.3f, y: %2.3f, t: %2.3f" % (
-                #self.pose.position.x, self.pose.position.y, theta_bar+dq[2, 0]
-            #))
-            #print("Turtlebot3 Odom: x: %2.3f, y: %2.3f, t: %2.3f" % (
-                #self.odom.pose.pose.position.x, self.odom.pose.pose.position.y,
-                #euler_from_ros_quat(self.odom.pose.pose.orientation)[2]
-            #))
+            print("Wheel Odom: x: %2.3f, y: %2.3f, t: %2.3f" % (
+                self.pose.position.x, self.pose.position.y, theta_bar+dq[2, 0]
+            ))
+            print("Turtlebot3 Odom: x: %2.3f, y: %2.3f, t: %2.3f" % (
+                self.odom.pose.pose.position.x, self.odom.pose.pose.position.y,
+                euler_from_ros_quat(self.odom.pose.pose.orientation)[2]
+            ))
 
     def odom_cb(self, odom_msg):
         # get odom from turtlebot3 packages

@@ -79,7 +79,7 @@ class wheelBaselineEstimator():
             dPhi_diff = (self.del_left_encoder - self.del_right_encoder)/TICKS_PER_ROTATION*2*np.pi
             separation = WHEEL_RADIUS/2*(dPhi_diff/(NUM_ROTATIONS*2*np.pi))
             print('Calibrated Separation: {} m'.format(separation))
-
+	    #0.14855371093750003
             #Reset the robot and calibration routine
             self.lock.acquire()
             self.left_encoder_prev = None

@@ -8,7 +8,7 @@ from std_msgs.msg import Empty
 from geometry_msgs.msg import Twist
 
 INT32_MAX = 2**31
-DRIVEN_DISTANCE = 0.75 #in meters
+DRIVEN_DISTANCE = 1.235 #2 floor tiles, in meters
 TICKS_PER_ROTATION = 4096
 
 class wheelRadiusEstimator():
